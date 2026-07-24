@@ -24,56 +24,29 @@
 
 ## 📸 Screenshots
 
-
-
 ### Dashboard Overview
-
-
 
 ![Dashboard Overview](ss/01-dashboard-overview.png)
 
-
-
 ### Inventory Management
-
-
 
 ![Inventory Management](ss/02-inventory-management.png)
 
-
-
 ### Sales Management
-
-
 
 ![Sales Management](ss/03-sales-management.png)
 
-
-
 ### AI Insights
-
-
 
 ![AI Insights](ss/04-ai-insights.png)
 
-
-
 ### Business Q&A
-
-
 
 ![Business Q&A](ss/05-business-qa.png)
 
-
-
 ### AI Providers
 
-
-
 ![AI Providers](ss/06-ai-providers.png)
-
-
-
 ---
 
 
