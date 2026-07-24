@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — BYOAI Inventory &amp; Sales Optimizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg:#14171A;
+    --surface:#1B1F23;
+    --surface-2:#20252B;
+    --surface-3:#262C33;
+    --border:#2B3138;
+    --border-soft:#22272D;
+    --text:#E7E5E0;
+    --text-dim:#8A9098;
+    --text-faint:#5B6169;
+    --amber:#F0A202;
+    --amber-dim:#5A420E;
+    --teal:#49C5B6;
+    --teal-dim:#173832;
+    --red:#E5484D;
+    --red-dim:#3A1618;
+    --green:#4CAF6E;
+    --green-dim:#163122;
+    --radius:3px;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --sans:'IBM Plex Sans',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--amber);color:#1a1a1a;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+  :focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+
+  /* ---------- loading overlay ---------- */
+  #loadingOverlay{
+    position:fixed;inset:0;background:var(--bg);z-index:40;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  }
+  #loadingOverlay .lspin{width:22px;height:22px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--amber);animation:spin .8s linear infinite;}
+  #loadingOverlay .ltext{font-family:var(--mono);font-size:12.5px;color:var(--text-dim);letter-spacing:.03em;}
+
+  /* ---------- layout shell ---------- */
+  .shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh;}
+  @media (max-width:860px){.shell{grid-template-columns:1fr;}}
+
+  .rail{
+    background:var(--surface);
+    border-right:1px solid var(--border);
+    display:flex;flex-direction:column;
+    padding:20px 0;
+  }
+  @media (max-width:860px){.rail{border-right:none;border-bottom:1px solid var(--border);flex-direction:row;align-items:center;padding:12px 16px;overflow-x:auto;}}
+
+  .brand{
+    padding:0 20px 20px;
+    border-bottom:1px solid var(--border-soft);
+    margin-bottom:8px;
+  }
+  @media (max-width:860px){.brand{padding:0 16px 0 0;border-bottom:none;margin-bottom:0;border-right:1px solid var(--border-soft);}}
+  .brand .mark{
+    font-family:var(--mono);font-weight:700;font-size:15px;letter-spacing:.02em;
+    color:var(--text);display:flex;align-items:center;gap:8px;
+  }
+  .brand .mark .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px var(--amber-dim);flex:none;}
+  .brand .sub{font-size:11px;color:var(--text-faint);margin-top:4px;font-family:var(--mono);letter-spacing:.03em;white-space:nowrap;}
+  @media (max-width:860px){.brand .sub{display:none;}}
+
+  .navlist{list-style:none;padding:12px 10px;flex:1;display:flex;flex-direction:column;gap:2px;}
+  @media (max-width:860px){.navlist{flex-direction:row;padding:0 0 0 14px;}}
+  .navitem{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 10px;border-radius:var(--radius);
+    color:var(--text-dim);font-size:13px;font-weight:500;
+    border:1px solid transparent;white-space:nowrap;
+  }
+  .navitem .num{font-family:var(--mono);font-size:11px;color:var(--text-faint);width:16px;flex:none;}
+  .navitem:hover{color:var(--text);background:var(--surface-2);}
+  .navitem.active{color:var(--text);background:var(--surface-3);border-color:var(--border);}
+  .navitem.active .num{color:var(--amber);}
+
+  .railfoot{padding:10px 20px 0;border-top:1px solid var(--border-soft);margin-top:8px;padding-top:14px;}
+  @media (max-width:860px){.railfoot{display:none;}}
+  .railfoot .label{font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;font-family:var(--mono);}
+  .provider-pill{
+    display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-dim);
+    padding:5px 0;
+  }
+  .led{width:6px;height:6px;border-radius:50%;flex:none;}
+  .led.on{background:var(--green);box-shadow:0 0 6px var(--green);}
+  .led.off{background:var(--text-faint);}
+
+  .profile-box{
+    padding:10px 20px 0;margin-top:auto;border-top:1px solid var(--border-soft);
+  }
+  @media (max-width:860px){.profile-box{display:none;}}
+  .profile-name{font-family:var(--mono);font-size:12.5px;color:var(--text);display:flex;align-items:center;gap:7px;}
+  .profile-name .av{width:18px;height:18px;border-radius:50%;background:var(--teal-dim);color:var(--teal);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex:none;}
+  .profile-switch{font-size:11px;color:var(--text-faint);margin-top:5px;text-decoration:underline;text-underline-offset:2px;}
+  .profile-switch:hover{color:var(--text-dim);}
+
+  main{padding:28px 32px 60px;max-width:1180px;}
+  @media (max-width:860px){main{padding:20px 16px 40px;}}
+
+  .pagehead{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:26px;}
+  .pagehead h1{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.01em;}
+  .pagehead p{color:var(--text-dim);font-size:13px;margin-top:4px;max-width:520px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+  .headactions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+
+  /* ---------- buttons ---------- */
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:8px 14px;border-radius:var(--radius);
+    border:1px solid var(--border);background:var(--surface-2);
+    color:var(--text);font-size:12.5px;font-weight:500;letter-spacing:.01em;
+    transition:border-color .12s;
+  }
+  .btn:hover{border-color:var(--text-faint);}
+  .btn-primary{background:var(--amber);border-color:var(--amber);color:#1a1408;font-weight:600;}
+  .btn-primary:hover{background:#ffb31f;border-color:#ffb31f;}
+  .btn-teal{background:var(--teal);border-color:var(--teal);color:#0a1f1c;font-weight:600;}
+  .btn-teal:hover{background:#5cdccc;}
+  .btn-danger{color:var(--red);}
+  .btn-danger:hover{border-color:var(--red);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-sm{padding:5px 10px;font-size:11.5px;}
+  .btn-icon{padding:5px 8px;font-size:11px;}
+
+  /* ---------- cards / grid ---------- */
+  .grid{display:grid;gap:14px;}
+  .grid-4{grid-template-columns:repeat(4,1fr);}
+  .grid-3{grid-template-columns:repeat(3,1fr);}
+  .grid-2{grid-template-columns:1fr 1fr;}
+  @media (max-width:760px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr 1fr;}}
+  @media (max-width:500px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr;}}
+
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px;
+  }
+  .metric-card .label{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;}
+  .metric-card .value{font-family:var(--mono);font-size:26px;font-weight:600;margin-top:8px;color:var(--text);}
+  .metric-card .value small{font-size:13px;color:var(--text-dim);font-weight:400;}
+  .metric-card .delta{font-size:11.5px;margin-top:6px;font-family:var(--mono);}
+  .delta.up{color:var(--green);}
+  .delta.down{color:var(--red);}
+  .delta.flat{color:var(--text-faint);}
+
+  .section-title{
+    font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--text-dim);margin:28px 0 12px;display:flex;align-items:center;gap:10px;
+  }
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border-soft);}
+
+  /* ---------- tables ---------- */
+  .tablewrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{
+    text-align:left;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--text-faint);background:var(--surface-2);
+    padding:9px 12px;border-bottom:1px solid var(--border);font-weight:500;white-space:nowrap;
+  }
+  tbody td{padding:9px 12px;border-bottom:1px solid var(--border-soft);color:var(--text-dim);font-family:var(--mono);white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--surface-2);}
+  td.pri{color:var(--text);}
+  td.actions{display:flex;gap:6px;}
+  .tag{display:inline-block;padding:2px 7px;border-radius:2px;font-size:10.5px;font-family:var(--mono);border:1px solid;}
+  .tag.red{color:var(--red);border-color:var(--red-dim);background:var(--red-dim);}
+  .tag.amber{color:var(--amber);border-color:var(--amber-dim);background:var(--amber-dim);}
+  .tag.green{color:var(--green);border-color:var(--green-dim);background:var(--green-dim);}
+  .tag.teal{color:var(--teal);border-color:var(--teal-dim);background:var(--teal-dim);}
+
+  .emptystate{
+    border:1px dashed var(--border);border-radius:var(--radius);
+    padding:36px 20px;text-align:center;color:var(--text-faint);font-size:12.5px;
+  }
+  .emptystate strong{display:block;color:var(--text-dim);font-size:13px;margin-bottom:6px;font-weight:500;}
+
+  .uploadrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+  .filelabel{
+    border:1px solid var(--border);background:var(--surface-2);padding:8px 14px;border-radius:var(--radius);
+    font-size:12.5px;color:var(--text-dim);display:inline-flex;align-items:center;gap:8px;
+  }
+  .filelabel:hover{border-color:var(--text-faint);color:var(--text);}
+  .filelabel input{display:none;}
+  .hint{font-size:11.5px;color:var(--text-faint);}
+
+  /* ---------- provider rack ---------- */
+  .rack{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
+  .socket{
+    border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);
+    padding:14px;position:relative;
+  }
+  .socket.connected{border-color:var(--teal-dim);}
+  .socket.isdefault{box-shadow:inset 0 0 0 1px var(--amber-dim);}
+  .socket-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+  .socket-name{font-weight:600;font-size:13.5px;}
+  .socket-family{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
+  .socket-status{display:flex;align-items:center;gap:6px;font-size:10.5px;font-family:var(--mono);color:var(--text-faint);}
+  .socket-field{margin-top:8px;}
+  .socket-field label{display:block;font-size:10px;color:var(--text-faint);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+  .socket input,.socket select{
+    width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+    padding:6px 8px;border-radius:2px;font-size:12px;font-family:var(--mono);
+  }
+  .socket-actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+  .default-badge{font-size:9.5px;font-family:var(--mono);color:var(--amber);border:1px solid var(--amber-dim);background:var(--amber-dim);padding:2px 6px;border-radius:2px;text-transform:uppercase;letter-spacing:.06em;}
+
+  /* ---------- ai panel ---------- */
+  .feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:22px;}
+  .feature-btn{
+    text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);
+    padding:13px;display:flex;flex-direction:column;gap:4px;color:var(--text);
+  }
+  .feature-btn:hover{border-color:var(--teal);}
+  .feature-btn .fname{font-weight:600;font-size:13px;}
+  .feature-btn .fdesc{font-size:11.5px;color:var(--text-faint);line-height:1.4;}
+
+  .console{
+    border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
+    min-height:160px;max-height:520px;overflow-y:auto;
+  }
+  .console-line{padding:14px 16px;border-bottom:1px solid var(--border-soft);}
+  .console-line:last-child{border-bottom:none;}
+  .console-role{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);margin-bottom:6px;display:flex;gap:8px;align-items:center;}
+  .console-role.ai{color:var(--teal);}
+  .console-role.err{color:var(--red);}
+  .console-body{font-size:13px;color:var(--text-dim);white-space:pre-wrap;line-height:1.6;}
+  .console-body.pri{color:var(--text);}
+
+  .qa-input{display:flex;gap:8px;margin-top:14px;}
+  .qa-input input{
+    flex:1;background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+    padding:10px 12px;border-radius:var(--radius);font-size:13px;
+  }
+
+  .field-inline{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  .field-inline label{font-size:12px;color:var(--text-dim);font-family:var(--mono);}
+  .field-inline select{
+    background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+    padding:7px 10px;border-radius:var(--radius);font-size:12.5px;font-family:var(--mono);
+  }
+
+  .banner{
+    border:1px solid var(--border);border-left:3px solid var(--amber);background:var(--surface);
+    border-radius:var(--radius);padding:12px 14px;font-size:12.5px;color:var(--text-dim);margin-bottom:20px;
+  }
+  .banner.teal{border-left-color:var(--teal);}
+  .banner strong{color:var(--text);}
+
+  .spinner{
+    width:13px;height:13px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--teal);
+    animation:spin .7s linear infinite;flex:none;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .toast-wrap{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:50;}
+  .toast{
+    background:var(--surface-3);border:1px solid var(--border);border-left:3px solid var(--teal);
+    padding:10px 14px;border-radius:var(--radius);font-size:12.5px;max-width:320px;color:var(--text);
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  .toast.err{border-left-color:var(--red);}
+
+  .modal-backdrop{
+    position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;
+    z-index:60;padding:20px;
+  }
+  .modal{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    max-width:480px;width:100%;padding:22px;max-height:88vh;overflow-y:auto;
+  }
+  .modal h3{font-family:var(--mono);font-size:14px;margin-bottom:14px;}
+  .modal .row{margin-bottom:12px;}
+  .modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .modal label{display:block;font-size:11px;font-family:var(--mono);color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;}
+  .modal input,.modal select{
+    width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+    padding:8px 10px;border-radius:2px;font-size:13px;
+  }
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .modal p.msub{font-size:12px;color:var(--text-faint);margin:-6px 0 16px;}
+
+  .synced{font-size:11px;color:var(--text-faint);font-family:var(--mono);display:flex;align-items:center;gap:6px;}
+  .lastupdated{font-size:11.5px;color:var(--text-faint);font-family:var(--mono);margin-top:6px;display:flex;align-items:center;gap:6px;}
+  .lastupdated .pulse{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 6px var(--teal);flex:none;}
+  .badge-demo{
+    display:inline-flex;align-items:center;gap:5px;
+    font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--amber);background:var(--amber-dim);border:1px solid var(--amber);
+    padding:2px 8px;border-radius:20px;vertical-align:middle;margin-left:10px;
+  }
+  .badge-demo::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--amber);flex:none;}
+
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div class="lspin"></div><div class="ltext" id="loadingText">Connecting…</div></div>
+
+<div class="shell hidden" id="shell">
+  <nav class="rail">
+    <div class="brand">
+      <div class="mark"><span class="dot"></span>LEDGER</div>
+      <div class="sub">BYOAI Inventory &amp; Sales</div>
+    </div>
+    <ul class="navlist" id="navlist">
+      <li class="navitem active" data-view="dashboard"><span class="num">01</span>Dashboard</li>
+      <li class="navitem" data-view="inventory"><span class="num">02</span>Inventory</li>
+      <li class="navitem" data-view="sales"><span class="num">03</span>Sales</li>
+      <li class="navitem" data-view="insights"><span class="num">04</span>AI Insights</li>
+      <li class="navitem" data-view="providers"><span class="num">05</span>Providers</li>
+    </ul>
+    <div class="railfoot">
+      <div class="label">Active socket</div>
+      <div id="railProviderStatus"></div>
+    </div>
+    <div class="profile-box" id="profileBox"></div>
+  </nav>
+
+  <main id="main"></main>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<div id="modalRoot"></div>
+
+<script>
+/* =====================================================================
+   BYOAI INVENTORY & SALES OPTIMIZER — collaborative edition
+   - AI Abstraction Layer (Adapter/Strategy pattern): one interface,
+     many provider adapters, business logic never touches an SDK.
+   - Inventory & sales data are SHARED: everyone who opens this app can
+     add, edit, and remove records, and everyone sees everyone else's
+     changes (synced through window.storage, shared=true).
+   - AI provider keys are PERSONAL: each signed-in person's keys are
+     stored privately (shared=false) and never visible to anyone else.
+   ===================================================================== */
+
+const STORAGE_OK = (() => { try { return !!(window.storage && window.storage.get); } catch { return false; } })();
+
+async function sGet(key, shared) {
+  if (!STORAGE_OK) return null;
+  try { const r = await window.storage.get(key, shared); return r ? r.value : null; } catch { return null; }
+}
+async function sSet(key, value, shared) {
+  if (!STORAGE_OK) return false;
+  try { const r = await window.storage.set(key, value, shared); return !!r; } catch (e) { console.error('storage set failed', e); return false; }
+}
+async function sDelete(key, shared) {
+  if (!STORAGE_OK) return false;
+  try { await window.storage.delete(key, shared); return true; } catch { return false; }
+}
+async function sList(prefix, shared) {
+  if (!STORAGE_OK) return [];
+  try { const r = await window.storage.list(prefix, shared); return (r && r.keys) || []; } catch { return []; }
+}
+
+/* ---------------------------------------------------------------------
+   1. STATE
+   --------------------------------------------------------------------- */
+const state = {
+  view: 'dashboard',
+  profile: null,           // {name}
+  providers: [],           // personal — {id, family, name, model, apiKey, baseUrl, enabled, isDefault}
+  inventory: [],           // shared — {id, sku,name,category,qty,cost,price,reorderPoint,lastSold,updatedBy,updatedAt}
+  sales: [],               // shared — {id, date,sku,qty,revenue,updatedBy,updatedAt}
+  aiLog: [],
+  busy: false,
+  lastSync: null,
+  syncing: false,
+};
+
+/* ---------------------------------------------------------------------
+   2. PROVIDER CATALOG
+   --------------------------------------------------------------------- */
+const PROVIDER_CATALOG = {
+  openai:     { label:'OpenAI',            family:'openai',    defaultBaseUrl:'https://api.openai.com/v1',        defaultModel:'gpt-4o-mini',              needsBaseUrl:false },
+  gemini:     { label:'Google Gemini',     family:'gemini',    defaultBaseUrl:'https://generativelanguage.googleapis.com/v1beta', defaultModel:'gemini-1.5-flash', needsBaseUrl:false },
+  claude:     { label:'Anthropic Claude',  family:'anthropic', defaultBaseUrl:'https://api.anthropic.com',         defaultModel:'claude-sonnet-4-6',        needsBaseUrl:false },
+  grok:       { label:'xAI Grok',          family:'openai',    defaultBaseUrl:'https://api.x.ai/v1',               defaultModel:'grok-2-latest',            needsBaseUrl:false },
+  deepseek:   { label:'DeepSeek',          family:'openai',    defaultBaseUrl:'https://api.deepseek.com/v1',       defaultModel:'deepseek-chat',            needsBaseUrl:false },
+  mistral:    { label:'Mistral AI',        family:'openai',    defaultBaseUrl:'https://api.mistral.ai/v1',         defaultModel:'mistral-large-latest',     needsBaseUrl:false },
+  cohere:     { label:'Cohere',            family:'cohere',    defaultBaseUrl:'https://api.cohere.com/v1',         defaultModel:'command-r-plus',           needsBaseUrl:false },
+  openrouter: { label:'OpenRouter',        family:'openai',    defaultBaseUrl:'https://openrouter.ai/api/v1',      defaultModel:'openai/gpt-4o-mini',       needsBaseUrl:false },
+  ollama:     { label:'Ollama (local)',    family:'ollama',    defaultBaseUrl:'http://localhost:11434',            defaultModel:'llama3.1',                 needsBaseUrl:true },
+  lmstudio:   { label:'LM Studio (local)', family:'openai',    defaultBaseUrl:'http://localhost:1234/v1',          defaultModel:'local-model',              needsBaseUrl:true },
+  azure:      { label:'Azure OpenAI',      family:'azure',     defaultBaseUrl:'https://YOUR-RESOURCE.openai.azure.com', defaultModel:'gpt-4o-mini',         needsBaseUrl:true },
+  bedrock:    { label:'AWS Bedrock',       family:'bedrock',   defaultBaseUrl:'',                                  defaultModel:'anthropic.claude-3-5-sonnet', needsBaseUrl:false },
+  custom:     { label:'Custom (OpenAI-compatible)', family:'openai', defaultBaseUrl:'https://your-endpoint.example.com/v1', defaultModel:'model-name', needsBaseUrl:true },
+};
+
+/* ---------------------------------------------------------------------
+   3. AI ABSTRACTION LAYER — low-level adapters
+   --------------------------------------------------------------------- */
+const Adapters = {
+  async openai({baseUrl, apiKey, model, system, messages}) {
+    const res = await fetch(`${baseUrl.replace(/\/$/,'')}/chat/completions`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages: [{role:'system', content: system}, ...messages], temperature: 0.4 }),
+    });
+    const data = await handleJson(res);
+    return data.choices?.[0]?.message?.content ?? '(empty response)';
+  },
+  async anthropic({baseUrl, apiKey, model, system, messages}) {
+    const res = await fetch(`${(baseUrl || 'https://api.anthropic.com').replace(/\/$/,'')}/v1/messages`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-api-key': apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+      body: JSON.stringify({ model, max_tokens: 1200, system, messages: messages.map(m => ({role:m.role === 'assistant' ? 'assistant':'user', content:m.content})) }),
+    });
+    const data = await handleJson(res);
+    return (data.content || []).map(c => c.text || '').join('') || '(empty response)';
+  },
+  async gemini({baseUrl, apiKey, model, system, messages}) {
+    const url = `${(baseUrl||'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/,'')}/models/${model}:generateContent?key=${apiKey}`;
+    const userText = messages.map(m => m.content).join('\n\n');
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents: [{ role:'user', parts:[{text: `${system}\n\n${userText}`}] }] }) });
+    const data = await handleJson(res);
+    return data.candidates?.[0]?.content?.parts?.map(p=>p.text).join('') ?? '(empty response)';
+  },
+  async cohere({baseUrl, apiKey, model, system, messages}) {
+    const userText = messages.map(m => m.content).join('\n\n');
+    const res = await fetch(`${(baseUrl||'https://api.cohere.com/v1').replace(/\/$/,'')}/chat`, {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${apiKey}` },
+      body: JSON.stringify({ model, message:userText, preamble:system }),
+    });
+    const data = await handleJson(res);
+    return data.text ?? '(empty response)';
+  },
+  async ollama({baseUrl, model, system, messages}) {
+    const res = await fetch(`${(baseUrl||'http://localhost:11434').replace(/\/$/,'')}/api/chat`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, messages: [{role:'system', content:system}, ...messages], stream:false }),
+    });
+    const data = await handleJson(res);
+    return data.message?.content ?? '(empty response)';
+  },
+  async azure({baseUrl, apiKey, model, system, messages}) {
+    const res = await fetch(`${baseUrl.replace(/\/$/,'')}/openai/deployments/${model}/chat/completions?api-version=2024-06-01`, {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'api-key': apiKey },
+      body: JSON.stringify({ messages:[{role:'system',content:system}, ...messages] }),
+    });
+    const data = await handleJson(res);
+    return data.choices?.[0]?.message?.content ?? '(empty response)';
+  },
+  async bedrock() {
+    const err = new Error('AWS Bedrock needs request signing (SigV4), which only works from a server. Route this provider through a backend proxy — see the note on the Providers tab.');
+    err.friendly = true;
+    throw err;
+  },
+};
+
+async function handleJson(res) {
+  let body;
+  try { body = await res.json(); } catch { body = null; }
+  if (!res.ok) {
+    const msg = body?.error?.message || body?.message || res.statusText;
+    const err = new Error(mapProviderError(res.status, msg));
+    err.friendly = true;
+    throw err;
+  }
+  return body;
+}
+function mapProviderError(status, raw) {
+  if (status === 401 || status === 403) return `The API key was rejected (${status}). Check the key on the Providers tab.`;
+  if (status === 404) return `Model or endpoint not found (404). Check the model name and base URL.`;
+  if (status === 429) return `Rate limited by the provider (429). Wait a moment and try again, or switch providers.`;
+  if (status >= 500) return `The provider is having trouble (${status}). Try again shortly, or switch providers.`;
+  return raw || `Request failed (${status}).`;
+}
+
+/* ---------------------------------------------------------------------
+   4. AI ABSTRACTION LAYER — router
+   --------------------------------------------------------------------- */
+async function callProvider(providerConfig, {system, messages}) {
+  const def = PROVIDER_CATALOG[providerConfig.family];
+  const adapter = Adapters[def.family];
+  if (!adapter) throw new Error(`No adapter registered for family "${def.family}".`);
+  try {
+    return await adapter({ baseUrl: providerConfig.baseUrl || def.defaultBaseUrl, apiKey: providerConfig.apiKey, model: providerConfig.model || def.defaultModel, system, messages });
+  } catch (e) {
+    if (e.friendly) throw e;
+    const err = new Error(`Couldn't reach ${providerConfig.name} — this is usually a network or CORS restriction from the browser. A server-side proxy avoids this in production.`);
+    err.friendly = true;
+    throw err;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   5. BUSINESS METRICS
+   --------------------------------------------------------------------- */
+function computeMetrics() {
+  const inv = state.inventory, sales = state.sales;
+  const totalValue = inv.reduce((s,i) => s + (i.qty * i.cost), 0);
+  const totalRetail = inv.reduce((s,i) => s + (i.qty * i.price), 0);
+  const skuCount = inv.length;
+  const lowStock = inv.filter(i => i.qty <= (i.reorderPoint || 0));
+
+  const salesBySku = {};
+  sales.forEach(s => {
+    salesBySku[s.sku] = salesBySku[s.sku] || {qty:0, revenue:0, lastDate:null};
+    salesBySku[s.sku].qty += s.qty;
+    salesBySku[s.sku].revenue += s.revenue;
+    if (!salesBySku[s.sku].lastDate || s.date > salesBySku[s.sku].lastDate) salesBySku[s.sku].lastDate = s.date;
+  });
+
+  const now = new Date();
+  const deadStock = inv.filter(i => {
+    const rec = salesBySku[i.sku];
+    if (!rec || !rec.lastDate) return true;
+    const days = (now - new Date(rec.lastDate)) / 86400000;
+    return days > 60;
+  });
+
+  const withVelocity = inv.map(i => ({ ...i, unitsSold: salesBySku[i.sku]?.qty || 0, revenue: salesBySku[i.sku]?.revenue || 0 })).sort((a,b) => b.unitsSold - a.unitsSold);
+  const fastMovers = withVelocity.slice(0, 5).filter(i => i.unitsSold > 0);
+  const slowMovers = [...withVelocity].filter(i=>i.qty>0).sort((a,b)=>a.unitsSold-b.unitsSold).slice(0,5);
+  const overstock = inv.filter(i => { const sold = salesBySku[i.sku]?.qty || 0; return sold > 0 ? i.qty > sold * 3 : i.qty > 50; });
+  const totalRevenue = sales.reduce((s,r) => s + r.revenue, 0);
+  const grossMargin = totalRetail > 0 ? ((totalRetail - totalValue) / totalRetail * 100) : 0;
+
+  return { totalValue, totalRetail, skuCount, lowStock, deadStock, fastMovers, slowMovers, overstock, totalRevenue, grossMargin, salesBySku };
+}
+
+/* ---------------------------------------------------------------------
+   6. AI SERVICE LAYER
+   --------------------------------------------------------------------- */
+const AIService = {
+  _defaultProvider() { return state.providers.find(p => p.isDefault && p.enabled) || state.providers.find(p => p.enabled); },
+  async _run(system, userPrompt) {
+    const provider = this._defaultProvider();
+    if (!provider) throw Object.assign(new Error('No AI provider is connected and enabled. Add one on the Providers tab.'), {friendly:true});
+    return callProvider(provider, { system, messages:[{role:'user', content:userPrompt}] });
+  },
+  async analyzeInventory() {
+    const m = computeMetrics();
+    return this._run('You are an inventory optimization analyst. Be concise, concrete, and use the numbers given. Format as short labeled sections, not long paragraphs.',
+      `Analyze this inventory snapshot and flag the most important issues:\n\nSKUs: ${m.skuCount}\nTotal cost value: ${m.totalValue.toFixed(2)}\nTotal retail value: ${m.totalRetail.toFixed(2)}\n` +
+      `Low stock items (at/under reorder point): ${m.lowStock.length} — ${m.lowStock.slice(0,10).map(i=>i.sku).join(', ')}\n` +
+      `Dead stock (no sales 60+ days): ${m.deadStock.length} — ${m.deadStock.slice(0,10).map(i=>i.sku).join(', ')}\n` +
+      `Overstocked items: ${m.overstock.length} — ${m.overstock.slice(0,10).map(i=>i.sku).join(', ')}`);
+  },
+  async analyzeSales() {
+    const m = computeMetrics();
+    return this._run('You are a sales performance analyst. Be concise and specific. Highlight trends and what to do about them.',
+      `Analyze recent sales performance:\n\nTotal revenue: ${m.totalRevenue.toFixed(2)}\nGross margin: ${m.grossMargin.toFixed(1)}%\n` +
+      `Top sellers: ${m.fastMovers.map(i=>`${i.sku} (${i.unitsSold} units, ${i.revenue.toFixed(2)} revenue)`).join('; ') || 'none recorded'}\n` +
+      `Slowest sellers still in stock: ${m.slowMovers.map(i=>`${i.sku} (${i.unitsSold} units)`).join('; ') || 'none recorded'}`);
+  },
+  async forecastDemand() {
+    const m = computeMetrics();
+    return this._run('You are a demand forecasting assistant. Give directional, practical forecasts, not false precision. Note your confidence and assumptions.',
+      `Based on this sales velocity data, forecast demand for the next 30 days per top item and flag any that will stock out:\n\n` +
+      m.fastMovers.map(i => `${i.sku}: current stock ${i.qty}, sold ${i.unitsSold} recently`).join('\n'));
+  },
+  async generateRecommendations() {
+    const m = computeMetrics();
+    return this._run('You are a reorder and profit-optimization advisor. Give a short prioritized action list, not general advice.',
+      `Generate reorder and profit-optimization recommendations:\n\nLow stock: ${m.lowStock.map(i=>i.sku).join(', ') || 'none'}\n` +
+      `Dead stock: ${m.deadStock.map(i=>i.sku).join(', ') || 'none'}\nOverstock: ${m.overstock.map(i=>i.sku).join(', ') || 'none'}\nGross margin: ${m.grossMargin.toFixed(1)}%`);
+  },
+  async summarizeReport() {
+    const m = computeMetrics();
+    return this._run('You are writing a short executive summary for a business owner. 5-8 sentences max, plain language, no jargon.',
+      `Write an executive summary of the current state of the business from this data:\n\nSKUs: ${m.skuCount}, inventory value: ${m.totalValue.toFixed(2)}, revenue: ${m.totalRevenue.toFixed(2)}, margin: ${m.grossMargin.toFixed(1)}%, ` +
+      `low stock: ${m.lowStock.length}, dead stock: ${m.deadStock.length}, overstock: ${m.overstock.length}.`);
+  },
+  async answerBusinessQuestion(question) {
+    const m = computeMetrics();
+    return this._run('You are a business Q&A assistant with access to the inventory and sales data summarized below. Answer only using this context; if the data doesn\'t cover the question, say so.',
+      `DATA CONTEXT:\nSKUs: ${m.skuCount}, inventory value: ${m.totalValue.toFixed(2)}, revenue: ${m.totalRevenue.toFixed(2)}, margin: ${m.grossMargin.toFixed(1)}%\n` +
+      `Low stock: ${m.lowStock.map(i=>i.sku).join(', ') || 'none'}\nDead stock: ${m.deadStock.map(i=>i.sku).join(', ') || 'none'}\n` +
+      `Top sellers: ${m.fastMovers.map(i=>i.sku).join(', ') || 'none'}\n\nQUESTION: ${question}`);
+  },
+};
+
+/* ---------------------------------------------------------------------
+   7. UI HELPERS
+   --------------------------------------------------------------------- */
+function uid() { return Math.random().toString(36).slice(2,10); }
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtMoney(n) { return '$' + (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}); }
+function initials(name) { return (name||'?').trim().slice(0,2).toUpperCase(); }
+function timeAgo(ts) {
+  if (!ts) return '';
+  const s = Math.floor((Date.now()-ts)/1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  return `${Math.floor(s/3600)}h ago`;
+}
+function fmtDateTime(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString(undefined, { dateStyle:'medium', timeStyle:'short' });
+}
+function getLastUpdatedTs() {
+  const stamps = [...state.inventory, ...state.sales].map(r => r.updatedAt).filter(Boolean);
+  return stamps.length ? Math.max(...stamps) : null;
+}
+function hasSampleData() {
+  return state.inventory.some(i => i.isSample) || state.sales.some(s => s.isSample);
+}
+
+function toast(msg, isErr=false) {
+  const wrap = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 4200);
+}
+
+function render() {
+  document.querySelectorAll('.navitem').forEach(n => n.classList.toggle('active', n.dataset.view === state.view));
+  const main = document.getElementById('main');
+  const views = { dashboard: viewDashboard, inventory: viewInventory, sales: viewSales, insights: viewInsights, providers: viewProviders };
+  main.innerHTML = views[state.view]();
+  renderRailStatus();
+  renderProfileBox();
+  attachHandlers();
+}
+
+function renderRailStatus() {
+  const el = document.getElementById('railProviderStatus');
+  const enabled = state.providers.filter(p => p.enabled);
+  if (!enabled.length) { el.innerHTML = `<div class="provider-pill"><span class="led off"></span>none connected</div>`; return; }
+  el.innerHTML = enabled.map(p => `<div class="provider-pill"><span class="led on"></span>${esc(p.name)}${p.isDefault ? ' ·  default':''}</div>`).join('');
+}
+
+function renderProfileBox() {
+  const el = document.getElementById('profileBox');
+  if (!el) return;
+  const name = state.profile?.name || 'Guest';
+  el.innerHTML = `
+    <div class="profile-name"><span class="av">${initials(name)}</span>${esc(name)}</div>
+    <div class="profile-switch" id="switchProfile">switch account</div>
+    ${STORAGE_OK ? '' : `<div style="font-size:10.5px;color:var(--red);margin-top:6px;">local-only — not synced</div>`}
+  `;
+}
+
+/* ---------------------------------------------------------------------
+   8. PROFILE / ACCOUNT
+   --------------------------------------------------------------------- */
+async function initProfile() {
+  const raw = await sGet('profile', false);
+  if (raw) { try { state.profile = JSON.parse(raw); return; } catch {} }
+  await promptForProfile(true);
+}
+
+function promptForProfile(isFirstRun) {
+  return new Promise(resolve => {
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="profBackdrop">
+        <div class="modal">
+          <h3>${isFirstRun ? 'Create your account' : 'Switch account'}</h3>
+          <p class="msub">Just a display name — it tags who added or edited each record so the team can see who did what. No password needed.</p>
+          <div class="row"><label>Your name</label><input id="profName" placeholder="e.g. Amir" autofocus></div>
+          <div class="modal-actions">
+            ${isFirstRun ? '' : '<button class="btn btn-sm" id="profCancel">Cancel</button>'}
+            <button class="btn btn-primary btn-sm" id="profSave">Continue</button>
+          </div>
+        </div>
+      </div>`;
+    const input = document.getElementById('profName');
+    input.focus();
+    const save = async () => {
+      const name = input.value.trim();
+      if (!name) { input.style.borderColor = 'var(--red)'; return; }
+      state.profile = { name };
+      await sSet('profile', JSON.stringify(state.profile), false);
+      root.innerHTML = '';
+      renderProfileBox();
+      resolve();
+    };
+    document.getElementById('profSave').onclick = save;
+    input.onkeydown = e => { if (e.key === 'Enter') save(); };
+    const cancelBtn = document.getElementById('profCancel');
+    if (cancelBtn) cancelBtn.onclick = () => { root.innerHTML=''; resolve(); };
+  });
+}
+
+/* ---------------------------------------------------------------------
+   9. SHARED DATA — inventory & sales (everyone can add/edit/remove)
+   --------------------------------------------------------------------- */
+async function loadSharedData() {
+  const [invKeys, salesKeys] = await Promise.all([ sList('inventory:', true), sList('sales:', true) ]);
+  const inv = await Promise.all(invKeys.map(k => sGet(k, true)));
+  const sal = await Promise.all(salesKeys.map(k => sGet(k, true)));
+  state.inventory = inv.filter(Boolean).map(v => { try { return JSON.parse(v); } catch { return null; } }).filter(Boolean);
+  state.sales = sal.filter(Boolean).map(v => { try { return JSON.parse(v); } catch { return null; } }).filter(Boolean);
+  state.lastSync = Date.now();
+}
+
+async function loadPersonalProviders() {
+  const keys = await sList('providers:', false);
+  const vals = await Promise.all(keys.map(k => sGet(k, false)));
+  state.providers = vals.filter(Boolean).map(v => { try { return JSON.parse(v); } catch { return null; } }).filter(Boolean);
+}
+
+async function saveInventoryItem(item) {
+  item.updatedBy = state.profile?.name || 'Guest';
+  item.updatedAt = Date.now();
+  await sSet(`inventory:${item.id}`, JSON.stringify(item), true);
+  const idx = state.inventory.findIndex(i => i.id === item.id);
+  if (idx >= 0) state.inventory[idx] = item; else state.inventory.push(item);
+}
+async function removeInventoryItem(id) {
+  await sDelete(`inventory:${id}`, true);
+  state.inventory = state.inventory.filter(i => i.id !== id);
+}
+async function saveSaleRow(row) {
+  row.updatedBy = state.profile?.name || 'Guest';
+  row.updatedAt = Date.now();
+  await sSet(`sales:${row.id}`, JSON.stringify(row), true);
+  const idx = state.sales.findIndex(s => s.id === row.id);
+  if (idx >= 0) state.sales[idx] = row; else state.sales.push(row);
+}
+async function removeSaleRow(id) {
+  await sDelete(`sales:${id}`, true);
+  state.sales = state.sales.filter(s => s.id !== id);
+}
+
+async function syncNow() {
+  if (state.syncing) return;
+  state.syncing = true;
+  render();
+  await loadSharedData();
+  state.syncing = false;
+  render();
+}
+
+/* Poll for teammates' changes while looking at shared views */
+setInterval(() => {
+  if (state.busy) return;
+  if (!['dashboard','inventory','sales','insights'].includes(state.view)) return;
+  if (document.getElementById('modalRoot').innerHTML.trim()) return; // don't yank data mid-edit
+  loadSharedData().then(() => { if (!document.getElementById('modalRoot').innerHTML.trim()) render(); });
+}, 8000);
+
+/* ---------------------------------------------------------------------
+   10. VIEWS
+   --------------------------------------------------------------------- */
+function viewDashboard() {
+  const m = computeMetrics();
+  const hasData = state.inventory.length > 0;
+  return `
+    <div class="pagehead">
+      <div><div class="eyebrow">Overview</div><h1>Dashboard${hasSampleData() ? '<span class="badge-demo">Demo Data</span>' : ''}</h1><p>A live, shared read on stock health and sell-through. Anyone on the team can add or change records from Inventory and Sales.</p>
+        <div class="lastupdated"><span class="pulse"></span>Last updated ${fmtDateTime(getLastUpdatedTs())}</div>
+      </div>
+      <div class="synced"><span class="spinner" style="${state.syncing?'':'display:none'}"></span>${state.syncing ? 'syncing…' : (state.lastSync ? `synced ${timeAgo(state.lastSync)}` : '')}<button class="btn btn-icon" data-action="sync">↻</button></div>
+    </div>
+    ${!hasData ? `<div class="banner">No inventory yet. Head to <strong>Inventory</strong> to add items or upload a CSV, or load sample data to explore the app.
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-sm" data-action="load-sample">Load sample data</button></div></div>` : ''}
+    <div class="grid grid-4">
+      <div class="card metric-card"><div class="label">Inventory value (cost)</div><div class="value">${fmtMoney(m.totalValue)}</div><div class="delta flat">${m.skuCount} SKUs on file</div></div>
+      <div class="card metric-card"><div class="label">Retail value</div><div class="value">${fmtMoney(m.totalRetail)}</div><div class="delta ${m.grossMargin>=0?'up':'down'}">${m.grossMargin.toFixed(1)}% gross margin</div></div>
+      <div class="card metric-card"><div class="label">Revenue recorded</div><div class="value">${fmtMoney(m.totalRevenue)}</div><div class="delta flat">${state.sales.length} sale rows</div></div>
+      <div class="card metric-card"><div class="label">Attention needed</div><div class="value">${m.lowStock.length + m.deadStock.length}<small> items</small></div><div class="delta ${(m.lowStock.length+m.deadStock.length)>0?'down':'flat'}">${m.lowStock.length} low · ${m.deadStock.length} dead</div></div>
+    </div>
+
+    <div class="section-title">Fast movers</div>
+    ${renderBarList(m.fastMovers, 'unitsSold', 'units sold')}
+
+    <div class="section-title">Needs a decision</div>
+    <div class="grid grid-3">
+      <div class="card"><div class="label" style="font-family:var(--mono);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;">Low stock</div>
+        ${listOrEmpty(m.lowStock, i=>`${i.sku} — ${i.qty} left`)}</div>
+      <div class="card"><div class="label" style="font-family:var(--mono);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;">Dead stock (60d+)</div>
+        ${listOrEmpty(m.deadStock, i=>`${i.sku} — ${i.qty} on hand`)}</div>
+      <div class="card"><div class="label" style="font-family:var(--mono);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;">Overstocked</div>
+        ${listOrEmpty(m.overstock, i=>`${i.sku} — ${i.qty} on hand`)}</div>
+    </div>
+
+    <div class="section-title">Ask the AI</div>
+    <div class="banner teal">Jump to <strong>AI Insights</strong> for a full executive summary, reorder recommendations, demand forecast, or to ask a free-form question about this data.
+      <div style="margin-top:8px;"><button class="btn btn-teal btn-sm" data-goto="insights">Open AI Insights</button></div>
+    </div>
+  `;
+}
+
+function renderBarList(items, key, unitLabel) {
+  if (!items.length) return `<div class="emptystate"><strong>No sales data yet</strong>Add sales records to see top performers.</div>`;
+  const max = Math.max(...items.map(i => i[key])) || 1;
+  return `<div class="card" style="display:flex;flex-direction:column;gap:10px;">` + items.map(i => `
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:70px;font-family:var(--mono);font-size:11.5px;color:var(--text-dim);flex:none;">${esc(i.sku)}</div>
+      <div style="flex:1;background:var(--surface-2);border-radius:2px;height:16px;overflow:hidden;">
+        <div style="height:100%;width:${(i[key]/max*100).toFixed(0)}%;background:var(--teal);"></div>
+      </div>
+      <div style="width:100px;text-align:right;font-family:var(--mono);font-size:11.5px;color:var(--text-faint);flex:none;">${i[key]} ${unitLabel}</div>
+    </div>`).join('') + `</div>`;
+}
+
+function listOrEmpty(items, fmt) {
+  if (!items.length) return `<div style="color:var(--text-faint);font-size:12px;margin-top:10px;">None right now.</div>`;
+  return `<ul style="list-style:none;margin-top:10px;display:flex;flex-direction:column;gap:6px;">` +
+    items.slice(0,6).map(i => `<li style="font-family:var(--mono);font-size:12px;color:var(--text-dim);">${esc(fmt(i))}</li>`).join('') +
+    (items.length>6 ? `<li style="font-size:11px;color:var(--text-faint);">+${items.length-6} more</li>` : '') +
+  `</ul>`;
+}
+
+function viewInventory() {
+  return `
+    <div class="pagehead">
+      <div><div class="eyebrow">Shared data</div><h1>Inventory${hasSampleData() ? '<span class="badge-demo">Demo Data</span>' : ''}</h1><p>Everyone using this app can add, edit, or remove items here — changes sync for the whole team.</p></div>
+      <div class="headactions">
+        <div class="synced"><span class="spinner" style="${state.syncing?'':'display:none'}"></span>${state.syncing ? 'syncing…' : (state.lastSync ? `synced ${timeAgo(state.lastSync)}` : '')}<button class="btn btn-icon" data-action="sync">↻</button></div>
+        <button class="btn btn-primary btn-sm" data-action="add-inventory">+ Add item</button>
+      </div>
+    </div>
+    <div class="uploadrow">
+      <label class="filelabel">Upload CSV<input type="file" accept=".csv" id="inventoryFile"></label>
+      <button class="btn btn-sm" data-action="load-sample">Load sample data</button>
+      <button class="btn btn-sm" data-action="reset-sample">Reset sample data</button>
+      <span class="hint">${state.inventory.length} items shared by the team</span>
+    </div>
+    ${state.inventory.length ? `
+      <div class="tablewrap"><table>
+        <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Qty</th><th>Cost</th><th>Price</th><th>Reorder pt</th><th>Last sold</th><th>Edited by</th><th></th></tr></thead>
+        <tbody>${state.inventory.map(i => `<tr data-iid="${i.id}">
+          <td class="pri">${esc(i.sku)}</td><td>${esc(i.name)}</td><td>${esc(i.category)}</td>
+          <td>${i.qty}</td><td>${fmtMoney(i.cost)}</td><td>${fmtMoney(i.price)}</td>
+          <td>${i.reorderPoint ?? '—'}</td><td>${i.lastSold ?? '—'}</td>
+          <td>${esc(i.updatedBy || '—')}${i.updatedAt ? ` · ${timeAgo(i.updatedAt)}` : ''}</td>
+          <td class="actions"><button class="btn btn-icon" data-action="edit-inventory" data-iid="${i.id}">Edit</button><button class="btn btn-icon btn-danger" data-action="delete-inventory" data-iid="${i.id}">✕</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    ` : `<div class="emptystate"><strong>No inventory yet</strong>Add an item, upload a CSV, or load sample data to get started.</div>`}
+  `;
+}
+
+function viewSales() {
+  return `
+    <div class="pagehead">
+      <div><div class="eyebrow">Shared data</div><h1>Sales${hasSampleData() ? '<span class="badge-demo">Demo Data</span>' : ''}</h1><p>Everyone using this app can add, edit, or remove sale records here — changes sync for the whole team.</p></div>
+      <div class="headactions">
+        <div class="synced"><span class="spinner" style="${state.syncing?'':'display:none'}"></span>${state.syncing ? 'syncing…' : (state.lastSync ? `synced ${timeAgo(state.lastSync)}` : '')}<button class="btn btn-icon" data-action="sync">↻</button></div>
+        <button class="btn btn-primary btn-sm" data-action="add-sale">+ Add sale</button>
+      </div>
+    </div>
+    <div class="uploadrow">
+      <label class="filelabel">Upload CSV<input type="file" accept=".csv" id="salesFile"></label>
+      <button class="btn btn-sm" data-action="load-sample">Load sample data</button>
+      <button class="btn btn-sm" data-action="reset-sample">Reset sample data</button>
+      <span class="hint">${state.sales.length} records shared by the team</span>
+    </div>
+    ${state.sales.length ? `
+      <div class="tablewrap"><table>
+        <thead><tr><th>Date</th><th>SKU</th><th>Qty</th><th>Revenue</th><th>Edited by</th><th></th></tr></thead>
+        <tbody>${state.sales.slice().reverse().slice(0,200).map(s => `<tr data-sid="${s.id}">
+          <td class="pri">${esc(s.date)}</td><td>${esc(s.sku)}</td><td>${s.qty}</td><td>${fmtMoney(s.revenue)}</td>
+          <td>${esc(s.updatedBy || '—')}${s.updatedAt ? ` · ${timeAgo(s.updatedAt)}` : ''}</td>
+          <td class="actions"><button class="btn btn-icon" data-action="edit-sale" data-sid="${s.id}">Edit</button><button class="btn btn-icon btn-danger" data-action="delete-sale" data-sid="${s.id}">✕</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      ${state.sales.length > 200 ? `<div class="hint" style="margin-top:8px;">Showing the 200 most recent of ${state.sales.length} rows.</div>` : ''}
+    ` : `<div class="emptystate"><strong>No sales records yet</strong>Add a sale, upload a CSV, or load sample data to get started.</div>`}
+  `;
+}
+
+const FEATURES = [
+  { id:'summarizeReport', name:'Executive summary', desc:'A short plain-language read on the business right now.' },
+  { id:'analyzeInventory', name:'Inventory analysis', desc:'Low stock, dead stock, and overstock, explained.' },
+  { id:'analyzeSales', name:'Sales analysis', desc:'What sold, what didn\'t, and why it matters.' },
+  { id:'forecastDemand', name:'Demand forecast', desc:'30-day directional forecast for your top movers.' },
+  { id:'generateRecommendations', name:'Reorder recommendations', desc:'A prioritized action list for stock and margin.' },
+];
+
+function viewInsights() {
+  const provider = AIService._defaultProvider();
+  return `
+    <div class="pagehead">
+      <div><div class="eyebrow">AI Abstraction Layer</div><h1>AI Insights</h1><p>Every feature below goes through the same interface, regardless of which provider is plugged in. Your provider connection is personal to your account.</p></div>
+    </div>
+    ${!provider ? `<div class="banner">No enabled AI provider is connected. <button class="btn btn-sm" style="margin-left:6px;" data-goto="providers">Connect one</button></div>`
+      : `<div class="banner teal">Running on <strong>${esc(provider.name)}</strong> (${esc(PROVIDER_CATALOG[provider.family].label)}). Switch the default on the Providers tab any time — nothing here changes.</div>`}
+
+    <div class="feature-grid">
+      ${FEATURES.map(f => `<button class="feature-btn" data-run="${f.id}"><span class="fname">${f.name}</span><span class="fdesc">${f.desc}</span></button>`).join('')}
+    </div>
+
+    <div class="section-title">Business Q&amp;A</div>
+    <div class="console" id="console">
+      ${state.aiLog.length ? state.aiLog.map(renderLogLine).join('') : `<div class="emptystate" style="border:none;">Ask a question about your inventory or sales data, or run one of the features above.</div>`}
+    </div>
+    <div class="qa-input">
+      <input type="text" id="qaInput" placeholder="e.g. Which SKUs should I reorder this week?" />
+      <button class="btn btn-teal" data-action="ask">Ask</button>
+    </div>
+  `;
+}
+
+function renderLogLine(entry) {
+  if (entry.role === 'user') return `<div class="console-line"><div class="console-role">You</div><div class="console-body pri">${esc(entry.text)}</div></div>`;
+  if (entry.isError) return `<div class="console-line"><div class="console-role err">Error</div><div class="console-body">${esc(entry.text)}</div></div>`;
+  return `<div class="console-line"><div class="console-role ai">${esc(entry.provider || 'AI')}</div><div class="console-body pri">${esc(entry.text)}</div></div>`;
+}
+
+function viewProviders() {
+  return `
+    <div class="pagehead">
+      <div><div class="eyebrow">BYOAI — personal to your account</div><h1>Providers</h1><p>You own your AI. Add any provider, save your own key, and pick a default. The app never ships with a built-in key, and your keys are never visible to teammates.</p></div>
+      <button class="btn btn-primary btn-sm" data-action="add-provider">+ Add provider</button>
+    </div>
+    <div class="banner">
+      <strong>Inventory and sales are shared</strong> with everyone who opens this app — add/edit/delete there is a team action. <strong>Provider keys here are private to you</strong> and stored only under your account, never shared. A few providers (notably Anthropic, and any strict-CORS API) may block direct browser calls; AWS Bedrock always requires a signed server-side call.
+      ${STORAGE_OK ? '' : `<div style="color:var(--red);margin-top:6px;">Persistent sync isn't available in this window — everything will reset on reload.</div>`}
+    </div>
+    ${state.providers.length ? `<div class="rack">${state.providers.map(renderSocket).join('')}</div>`
+      : `<div class="emptystate"><strong>No providers connected yet</strong>Add OpenAI, Claude, Gemini, a local Ollama model, or any OpenAI-compatible endpoint.</div>`}
+  `;
+}
+
+function renderSocket(p) {
+  const def = PROVIDER_CATALOG[p.family];
+  return `
+    <div class="socket ${p.enabled?'connected':''} ${p.isDefault?'isdefault':''}" data-pid="${p.id}">
+      <div class="socket-top">
+        <div>
+          <div class="socket-name">${esc(p.name)} ${p.isDefault ? '<span class="default-badge">default</span>' : ''}</div>
+          <div class="socket-family">${esc(def.label)}</div>
+        </div>
+        <div class="socket-status"><span class="led ${p.enabled?'on':'off'}"></span>${p.enabled?'enabled':'disabled'}</div>
+      </div>
+      <div class="socket-field"><label>Model</label><input type="text" data-field="model" value="${esc(p.model)}" placeholder="${esc(def.defaultModel)}"></div>
+      <div class="socket-field"><label>API key</label><input type="password" data-field="apiKey" value="${esc(p.apiKey)}" placeholder="sk-..."></div>
+      ${def.needsBaseUrl || p.baseUrl !== def.defaultBaseUrl ? `<div class="socket-field"><label>Base URL</label><input type="text" data-field="baseUrl" value="${esc(p.baseUrl)}" placeholder="${esc(def.defaultBaseUrl)}"></div>` : ''}
+      <div class="socket-actions">
+        <button class="btn btn-sm" data-action="toggle-enable" data-pid="${p.id}">${p.enabled?'Disable':'Enable'}</button>
+        <button class="btn btn-sm" data-action="set-default" data-pid="${p.id}" ${p.isDefault?'disabled':''}>Set default</button>
+        <button class="btn btn-sm btn-danger" data-action="remove-provider" data-pid="${p.id}">Remove</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------------------------------------------------------------
+   11. EVENT WIRING
+   --------------------------------------------------------------------- */
+function attachHandlers() {
+  document.querySelectorAll('[data-goto]').forEach(el => el.onclick = () => { state.view = el.dataset.goto; render(); });
+  document.querySelectorAll('[data-action="load-sample"]').forEach(el => el.onclick = loadSampleData);
+  document.querySelectorAll('[data-action="reset-sample"]').forEach(el => el.onclick = resetSampleData);
+  document.querySelectorAll('[data-action="sync"]').forEach(el => el.onclick = syncNow);
+
+  const invFile = document.getElementById('inventoryFile');
+  if (invFile) invFile.onchange = e => parseCsvInto(e.target.files[0], 'inventory');
+  const salesFile = document.getElementById('salesFile');
+  if (salesFile) salesFile.onchange = e => parseCsvInto(e.target.files[0], 'sales');
+
+  const addInv = document.querySelector('[data-action="add-inventory"]');
+  if (addInv) addInv.onclick = () => openInventoryModal(null);
+  document.querySelectorAll('[data-action="edit-inventory"]').forEach(btn => btn.onclick = () => openInventoryModal(state.inventory.find(i => i.id === btn.dataset.iid)));
+  document.querySelectorAll('[data-action="delete-inventory"]').forEach(btn => btn.onclick = async () => {
+    if (!confirm('Remove this item for everyone?')) return;
+    await removeInventoryItem(btn.dataset.iid); render(); toast('Item removed.');
+  });
+
+  const addSale = document.querySelector('[data-action="add-sale"]');
+  if (addSale) addSale.onclick = () => openSaleModal(null);
+  document.querySelectorAll('[data-action="edit-sale"]').forEach(btn => btn.onclick = () => openSaleModal(state.sales.find(s => s.id === btn.dataset.sid)));
+  document.querySelectorAll('[data-action="delete-sale"]').forEach(btn => btn.onclick = async () => {
+    if (!confirm('Remove this sale record for everyone?')) return;
+    await removeSaleRow(btn.dataset.sid); render(); toast('Sale removed.');
+  });
+
+  document.querySelectorAll('[data-run]').forEach(el => el.onclick = () => runFeature(el.dataset.run));
+  const ask = document.querySelector('[data-action="ask"]');
+  if (ask) ask.onclick = askQuestion;
+  const qaInput = document.getElementById('qaInput');
+  if (qaInput) qaInput.onkeydown = e => { if (e.key === 'Enter') askQuestion(); };
+
+  const addProv = document.querySelector('[data-action="add-provider"]');
+  if (addProv) addProv.onclick = openAddProviderModal;
+
+  document.querySelectorAll('.socket').forEach(socket => {
+    const pid = socket.dataset.pid;
+    socket.querySelectorAll('input[data-field]').forEach(input => {
+      input.onchange = async () => {
+        const p = state.providers.find(p => p.id === pid);
+        if (!p) return;
+        p[input.dataset.field] = input.value;
+        await sSet(`providers:${p.id}`, JSON.stringify(p), false);
+        toast(`${p.name} updated.`);
+      };
+    });
+  });
+  document.querySelectorAll('[data-action="toggle-enable"]').forEach(btn => btn.onclick = async () => {
+    const p = state.providers.find(p => p.id === btn.dataset.pid);
+    p.enabled = !p.enabled;
+    if (!p.enabled && p.isDefault) p.isDefault = false;
+    await sSet(`providers:${p.id}`, JSON.stringify(p), false);
+    render();
+  });
+  document.querySelectorAll('[data-action="set-default"]').forEach(btn => btn.onclick = async () => {
+    const target = state.providers.find(p => p.id === btn.dataset.pid);
+    for (const p of state.providers) {
+      const wasDefault = p.isDefault;
+      p.isDefault = (p.id === target.id);
+      if (p.id === target.id) p.enabled = true;
+      if (wasDefault !== p.isDefault) await sSet(`providers:${p.id}`, JSON.stringify(p), false);
+    }
+    render();
+    toast(`${target.name} set as default.`);
+  });
+  document.querySelectorAll('[data-action="remove-provider"]').forEach(btn => btn.onclick = async () => {
+    await sDelete(`providers:${btn.dataset.pid}`, false);
+    state.providers = state.providers.filter(p => p.id !== btn.dataset.pid);
+    render();
+  });
+
+  const switchProfile = document.getElementById('switchProfile');
+  if (switchProfile) switchProfile.onclick = () => promptForProfile(false);
+}
+
+document.getElementById('navlist').addEventListener('click', e => {
+  const item = e.target.closest('.navitem');
+  if (!item) return;
+  state.view = item.dataset.view;
+  render();
+});
+
+/* ---------------------------------------------------------------------
+   12. CSV HANDLING (rows are added to the shared store, not a bulk overwrite)
+   --------------------------------------------------------------------- */
+function parseCsvInto(file, target) {
+  if (!file) return;
+  Papa.parse(file, {
+    header:true, skipEmptyLines:true, dynamicTyping:true,
+    complete: async res => {
+      const rows = res.data;
+      let count = 0;
+      for (const r of rows) {
+        if (target === 'inventory') {
+          const sku = r.sku ?? r.SKU;
+          if (!sku) continue;
+          await saveInventoryItem({
+            id: uid(), sku, name: r.name ?? '', category: r.category ?? '',
+            qty: Number(r.qty)||0, cost: Number(r.cost)||0, price: Number(r.price)||0,
+            reorderPoint: r.reorderPoint !== undefined ? Number(r.reorderPoint) : undefined,
+            lastSold: r.lastSold ?? undefined,
+          });
+        } else {
+          const sku = r.sku ?? r.SKU;
+          if (!sku) continue;
+          await saveSaleRow({ id: uid(), date: r.date ?? '', sku, qty: Number(r.qty)||0, revenue: Number(r.revenue)||0 });
+        }
+        count++;
+      }
+      render();
+      toast(`Added ${count} rows to shared ${target}.`);
+    },
+    error: err => toast(`Couldn't parse that CSV: ${err.message}`, true),
+  });
+}
+
+/* Deterministic so "Reset sample data" always reproduces the exact same known state. */
+async function populateSampleData() {
+  const cats = ['Apparel','Home','Electronics','Kitchen','Outdoor'];
+  const skus = Array.from({length:16}, (_,i) => `SKU-${1000+i}`);
+  const qtys = [2,5,80,12,0,40,7,3,60,9,1,25,4,55,8,2];
+  for (let i=0;i<skus.length;i++) {
+    await saveInventoryItem({
+      id: uid(), sku: skus[i], name:`Sample Product ${i+1}`, category: cats[i%cats.length],
+      qty: qtys[i], cost: (5 + i*1.3), price: (12 + i*2.4), reorderPoint: 8,
+      lastSold: i % 3 === 0 ? '2026-05-02' : '2026-07-10',
+      isSample: true,
+    });
+  }
+  const today = new Date('2026-07-14');
+  const counts = [0,0,14,6,0,3,9,0,18,4,0,10,2,20,5,0];
+  for (let i=0;i<skus.length;i++) {
+    for (let j=0;j<counts[i];j++) {
+      // deterministic pseudo-spread across the last 20 days, and a repeatable qty/revenue pattern
+      const offset = (i*7 + j*3) % 20;
+      const d = new Date(today.getTime() - offset*86400000);
+      const unitQty = 1 + ((i + j) % 3);
+      await saveSaleRow({
+        id: uid(), date: d.toISOString().slice(0,10), sku: skus[i],
+        qty: unitQty, revenue: (12+i*2.4)*unitQty,
+        isSample: true,
+      });
+    }
+  }
+}
+
+async function loadSampleData() {
+  await populateSampleData();
+  render();
+  toast('Sample inventory and sales data added to the shared workspace.');
+}
+
+async function resetSampleData() {
+  if (state.busy) return;
+  const confirmed = confirm('Reset sample data? This removes all demo inventory and sales records for the whole team and reloads a fresh, known-good sample set. Any non-demo items you or teammates added will be left untouched.');
+  if (!confirmed) return;
+  state.busy = true;
+  render();
+  try {
+    const sampleInv = state.inventory.filter(i => i.isSample);
+    const sampleSales = state.sales.filter(s => s.isSample);
+    await Promise.all([
+      ...sampleInv.map(i => removeInventoryItem(i.id)),
+      ...sampleSales.map(s => removeSaleRow(s.id)),
+    ]);
+    await populateSampleData();
+    toast('Sample data reset to its default known state.');
+  } catch (e) {
+    console.error(e);
+    toast('Could not reset sample data — please try again.', true);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+/* ---------------------------------------------------------------------
+   13. AI ACTIONS
+   --------------------------------------------------------------------- */
+async function runFeature(id) {
+  if (state.busy) return;
+  const fdef = FEATURES.find(f => f.id === id);
+  state.aiLog.push({ role:'user', text:`Run: ${fdef.name}` });
+  render();
+  await runAiCall(() => AIService[id]());
+}
+async function askQuestion() {
+  const input = document.getElementById('qaInput');
+  const q = input.value.trim();
+  if (!q || state.busy) return;
+  state.aiLog.push({ role:'user', text:q });
+  input.value = '';
+  render();
+  await runAiCall(() => AIService.answerBusinessQuestion(q));
+}
+async function runAiCall(fn) {
+  state.busy = true;
+  const provider = AIService._defaultProvider();
+  const consoleEl = document.getElementById('console');
+  if (consoleEl) { consoleEl.innerHTML += `<div class="console-line" id="pending"><div class="console-role ai"><span class="spinner"></span>${provider ? esc(provider.name) : 'AI'} thinking…</div></div>`; consoleEl.scrollTop = consoleEl.scrollHeight; }
+  try {
+    const text = await fn();
+    state.aiLog.push({ role:'ai', provider: provider?.name, text });
+  } catch (e) {
+    state.aiLog.push({ role:'ai', isError:true, text: e.message || String(e) });
+    toast(e.message || 'AI request failed', true);
+  } finally {
+    state.busy = false;
+    if (state.view === 'insights') render();
+    const c = document.getElementById('console');
+    if (c) c.scrollTop = c.scrollHeight;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   14. MODALS — inventory item / sale row / provider
+   --------------------------------------------------------------------- */
+function openInventoryModal(existing) {
+  const root = document.getElementById('modalRoot');
+  const it = existing || { id:null, sku:'', name:'', category:'', qty:0, cost:0, price:0, reorderPoint:8, lastSold:'' };
+  root.innerHTML = `
+    <div class="modal-backdrop" id="mBackdrop">
+      <div class="modal">
+        <h3>${existing ? 'Edit item' : 'Add item'}</h3>
+        <div class="row2">
+          <div class="row"><label>SKU</label><input id="fSku" value="${esc(it.sku)}"></div>
+          <div class="row"><label>Category</label><input id="fCategory" value="${esc(it.category)}"></div>
+        </div>
+        <div class="row"><label>Name</label><input id="fName" value="${esc(it.name)}"></div>
+        <div class="row2">
+          <div class="row"><label>Qty on hand</label><input id="fQty" type="number" value="${it.qty}"></div>
+          <div class="row"><label>Reorder point</label><input id="fReorder" type="number" value="${it.reorderPoint ?? 0}"></div>
+        </div>
+        <div class="row2">
+          <div class="row"><label>Cost</label><input id="fCost" type="number" step="0.01" value="${it.cost}"></div>
+          <div class="row"><label>Price</label><input id="fPrice" type="number" step="0.01" value="${it.price}"></div>
+        </div>
+        <div class="row"><label>Last sold (optional)</label><input id="fLastSold" type="date" value="${it.lastSold||''}"></div>
+        <div class="modal-actions">
+          <button class="btn btn-sm" id="mCancel">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="mSave">${existing?'Save changes':'Add item'}</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').onclick = e => { if (e.target.id === 'mBackdrop') closeModal(); };
+  document.getElementById('mSave').onclick = async () => {
+    const sku = document.getElementById('fSku').value.trim();
+    if (!sku) { toast('SKU is required.', true); return; }
+    const item = {
+      id: it.id || uid(), sku,
+      name: document.getElementById('fName').value.trim(),
+      category: document.getElementById('fCategory').value.trim(),
+      qty: Number(document.getElementById('fQty').value)||0,
+      reorderPoint: Number(document.getElementById('fReorder').value)||0,
+      cost: Number(document.getElementById('fCost').value)||0,
+      price: Number(document.getElementById('fPrice').value)||0,
+      lastSold: document.getElementById('fLastSold').value || undefined,
+    };
+    await saveInventoryItem(item);
+    closeModal(); render();
+    toast(existing ? 'Item updated.' : 'Item added.');
+  };
+}
+
+function openSaleModal(existing) {
+  const root = document.getElementById('modalRoot');
+  const s = existing || { id:null, date: new Date().toISOString().slice(0,10), sku:'', qty:1, revenue:0 };
+  root.innerHTML = `
+    <div class="modal-backdrop" id="mBackdrop">
+      <div class="modal">
+        <h3>${existing ? 'Edit sale' : 'Add sale'}</h3>
+        <div class="row2">
+          <div class="row"><label>Date</label><input id="fDate" type="date" value="${s.date}"></div>
+          <div class="row"><label>SKU</label><input id="fSku" value="${esc(s.sku)}"></div>
+        </div>
+        <div class="row2">
+          <div class="row"><label>Qty sold</label><input id="fQty" type="number" value="${s.qty}"></div>
+          <div class="row"><label>Revenue</label><input id="fRevenue" type="number" step="0.01" value="${s.revenue}"></div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-sm" id="mCancel">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="mSave">${existing?'Save changes':'Add sale'}</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').onclick = e => { if (e.target.id === 'mBackdrop') closeModal(); };
+  document.getElementById('mSave').onclick = async () => {
+    const sku = document.getElementById('fSku').value.trim();
+    if (!sku) { toast('SKU is required.', true); return; }
+    const row = {
+      id: s.id || uid(),
+      date: document.getElementById('fDate').value || new Date().toISOString().slice(0,10),
+      sku, qty: Number(document.getElementById('fQty').value)||0,
+      revenue: Number(document.getElementById('fRevenue').value)||0,
+    };
+    await saveSaleRow(row);
+    closeModal(); render();
+    toast(existing ? 'Sale updated.' : 'Sale added.');
+  };
+}
+
+function openAddProviderModal() {
+  const root = document.getElementById('modalRoot');
+  const options = Object.entries(PROVIDER_CATALOG).map(([key,def]) => `<option value="${key}">${def.label}</option>`).join('');
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Connect a provider</h3>
+        <p class="msub">Private to your account — teammates never see this key.</p>
+        <div class="row"><label>Provider</label><select id="mFamily">${options}</select></div>
+        <div class="row"><label>Display name</label><input id="mName" placeholder="e.g. My OpenAI key"></div>
+        <div class="row"><label>Model</label><input id="mModel" placeholder=""></div>
+        <div class="row"><label>API key</label><input id="mKey" type="password" placeholder="paste your key"></div>
+        <div class="row"><label>Base URL (optional — required for local/self-hosted)</label><input id="mBaseUrl" placeholder=""></div>
+        <div class="modal-actions">
+          <button class="btn btn-sm" id="mCancel">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="mSave">Connect</button>
+        </div>
+      </div>
+    </div>`;
+  const familySel = document.getElementById('mFamily');
+  const nameInput = document.getElementById('mName');
+  const modelInput = document.getElementById('mModel');
+  const baseInput = document.getElementById('mBaseUrl');
+  function syncDefaults() {
+    const def = PROVIDER_CATALOG[familySel.value];
+    modelInput.placeholder = def.defaultModel;
+    baseInput.placeholder = def.defaultBaseUrl;
+    if (!nameInput.dataset.touched) nameInput.value = def.label;
+  }
+  familySel.onchange = syncDefaults;
+  nameInput.oninput = () => nameInput.dataset.touched = '1';
+  syncDefaults();
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('modalBackdrop').onclick = e => { if (e.target.id === 'modalBackdrop') closeModal(); };
+  document.getElementById('mSave').onclick = async () => {
+    const family = familySel.value;
+    const def = PROVIDER_CATALOG[family];
+    const provider = {
+      id: uid(), family,
+      name: nameInput.value.trim() || def.label,
+      model: modelInput.value.trim() || def.defaultModel,
+      apiKey: document.getElementById('mKey').value.trim(),
+      baseUrl: baseInput.value.trim() || def.defaultBaseUrl,
+      enabled: true,
+      isDefault: state.providers.length === 0,
+    };
+    await sSet(`providers:${provider.id}`, JSON.stringify(provider), false);
+    state.providers.push(provider);
+    closeModal();
+    state.view = 'providers';
+    render();
+    toast(`${provider.name} connected.`);
+  };
+}
+function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
+
+/* ---------------------------------------------------------------------
+   15. INIT
+   --------------------------------------------------------------------- */
+function withTimeout(promise, ms, fallback) {
+  return Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+async function boot() {
+  const lt = document.getElementById('loadingText');
+  try {
+    if (!STORAGE_OK) { lt.textContent = 'Starting in local-only mode…'; }
+    else lt.textContent = 'Signing in…';
+    await withTimeout(initProfile(), 12000, null);
+    if (!state.profile) state.profile = { name: 'Guest' };
+    lt.textContent = 'Loading shared workspace…';
+    await withTimeout(Promise.all([ loadSharedData(), loadPersonalProviders() ]), 10000, null);
+  } catch (e) {
+    console.error(e);
+    toast('Something went wrong loading data — starting with an empty workspace.', true);
+  } finally {
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    document.getElementById('shell').classList.remove('hidden');
+    render();
+  }
+}
+boot();
+</script>
+</body>
+</html>
