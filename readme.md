@@ -6,7 +6,7 @@
 
 
 
-![Dashboard Overview](dashboard-overview.png)
+![Dashboard Overview](ss/dashboard-overview.png)
 
 
 
