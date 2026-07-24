@@ -30,7 +30,7 @@
 
 
 
-![Dashboard Overview](dashboard-overview.png)
+![Dashboard Overview](ss/01-dashboard-overview.png)
 
 
 
@@ -38,7 +38,7 @@
 
 
 
-![Inventory Management](inventory-management.png)
+![Inventory Management](ss/02-inventory-management.png)
 
 
 
@@ -46,7 +46,7 @@
 
 
 
-![Sales Management](sales-management.png)
+![Sales Management](ss/03-sales-management.png)
 
 
 
@@ -54,7 +54,7 @@
 
 
 
-![AI Insights](ai-insights.png)
+![AI Insights](ss/04-ai-insights.png)
 
 
 
@@ -62,7 +62,7 @@
 
 
 
-![Business Q&A](business-qa.png)
+![Business Q&A](ss/05-business-qa.png)
 
 
 
@@ -70,7 +70,7 @@
 
 
 
-![AI Providers](-ai-providers.png)
+![AI Providers](ss/06-ai-providers.png)
 
 
 
