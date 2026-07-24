@@ -24,29 +24,17 @@
 
 ## 📸 Screenshots
 
-### Dashboard Overview
+![Dashboard Overview](ss/dashboard-overview.png)
 
-![Dashboard Overview](ss/01-dashboard-overview.png)
+![Inventory Management](ss/inventory-management.png)
 
-### Inventory Management
+![Sales Management](ss/sales-management.png)
 
-![Inventory Management](ss/02-inventory-management.png)
+![AI Insights](ss/ai-insights.png)
 
-### Sales Management
+![Business Q&A](ss/business-qa.png)
 
-![Sales Management](ss/03-sales-management.png)
-
-### AI Insights
-
-![AI Insights](ss/04-ai-insights.png)
-
-### Business Q&A
-
-![Business Q&A](ss/05-business-qa.png)
-
-### AI Providers
-
-![AI Providers](ss/06-ai-providers.png)
+![AI Providers](ss/ai-providers.png)
 ---
 
 
